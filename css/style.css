@@ -51,9 +51,10 @@ header {
   gap: 12px;
 }
 
-header h1 {
-  font-size: 1.75rem;
-  font-weight: 700;
-  color: var(--color-primary-dark);
-  letter-spacing: -0.02em;
+
+h1 {
+  color: #277aa3;/*文字色*/
+  border: solid 3px #277aa3;/*線色*/
+  padding: 0.5em;/*文字周りの余白*/
+  border-radius: 0.5em;/*角丸*/
 }
