@@ -66,6 +66,21 @@ h2 {
   font-size:20px
 }
 
+.fast_link {
+  display: block;
+  margin: 1rem 0;
+  font-size: 1.25rem;
+}
+.gacha_link {
+  display: block;
+  margin: 1rem 0;
+  font-size: 1.25rem;
+}
+
+#speed-form {
+  line-height: 1.5;
+}
+
 #calculate-btn {
   margin-top: 2rem;
   font-size: 1.25rem;
