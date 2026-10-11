@@ -15,7 +15,7 @@ body {
   padding: 32px 16px;
 }
 
-/* コンテンツの最大幅を制限して中央寄せ */
+
 .app-wrapper {
   max-width: 680px;
   margin: 0 auto;
@@ -26,6 +26,8 @@ body {
   list-style: none;
   padding-left: 0;
 }
+
+
 
 ul {
   list-style: none;
