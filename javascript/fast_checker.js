@@ -1,5 +1,6 @@
 const speedForm = document.getElementById('speed-form');
-const calculationResult = document.getElementById('calculation-result');
+const comparisonResult = document.getElementById('comparison-result');
+const speedRange = document.getElementById('speed-range');
 
 function applyBuff(speed, buff) {
   const multiplier = 1 + Math.abs(buff) * 0.3;
@@ -33,7 +34,8 @@ speedForm.addEventListener('submit', (event) => {
   ];
 
   if (calculatedSpeeds.some((speed) => !Number.isFinite(speed))) {
-    calculationResult.textContent = '数値を入力してください。';
+    comparisonResult.textContent = '数値を入力してください。';
+    speedRange.textContent = '未計算';
     return;
   }
 
@@ -47,8 +49,8 @@ speedForm.addEventListener('submit', (event) => {
     comparison = '2人目が確実に上回ります。';
   }
 
-  calculationResult.innerHTML = `
-    <p>比較結果: <strong>${comparison}</strong></p>
-    <p>速力範囲: 1人目 ${minimumSpeeds[0]}〜${maximumSpeeds[0]} / 2人目 ${minimumSpeeds[1]}〜${maximumSpeeds[1]}</p>
-  `;
+  comparisonResult.textContent = comparison;
+  speedRange.textContent =
+    `1人目 ${minimumSpeeds[0]}〜${maximumSpeeds[0]} / ` +
+    `2人目 ${minimumSpeeds[1]}〜${maximumSpeeds[1]}`;
 });

@@ -5,25 +5,12 @@
 }
 
 :root {
-  /* カラーパレット */
-  --color-bg:           #f5f4f0;
-  --color-surface:      #ffffff;
-  --color-primary:      #2d6a4f;
-  --color-primary-dark: #1b4332;
-  --color-text:         #1a1a1a;
-  --color-text-muted:   #6b7280;
-  --color-border:       #e0ddd6;
-  --color-done-bg:      #f0faf4;
-
-  /* サイズ・形状 */
   --radius: 8px;
   --shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
 }
 
 body {
   font-family: 'Noto Sans JP', 'Helvetica Neue', sans-serif;
-  background: var(--color-bg);
-  color: var(--color-text);
   min-height: 100vh;
   padding: 32px 16px;
 }
@@ -52,9 +39,63 @@ header {
 }
 
 h1 {
-  color: #277aa3;/*文字色*/
-  border: solid 3px #277aa3;/*線色*/
-  padding: 0.5em;/*文字周りの余白*/
-  border-radius: 0.5em;/*角丸*/
+  color: #364e96;/*文字色*/
+  padding: 0.5em 0;/*上下の余白*/
+  border-top: solid 3px #364e96;/*上線*/
+  border-bottom: solid 3px #364e96;/*下線*/
+}
+
+h2 {
+  font-size: 1.6rem;
+  border-bottom: 3px solid #1FD5AD;
+  padding-bottom: 4px;
+}
+
+.description{
   font-size: 16px;
+  color: var(--color-text-muted);
+  text-align: left;
+  margin-bottom: 16px;
+  padding: 16px;
+  color: #1a1a1a;
+  border: solid 3px #364e96;/*線色*/
+  background-color: #f0ebeb; 
+}
+
+.human {
+  font-size:20px
+}
+
+#calculate-btn {
+  margin-top: 2rem;
+  font-size: 1.25rem;
+  background-color: #1FD5AD;
+  color: white;
+  border: none;
+  padding: 16px 32px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  font-weight: bold;
+}
+
+#calculation-result {
+  margin-top: 1rem;
+  font-size: 1.25rem;
+  padding: 16px;
+  border-radius: var(--radius);
+}
+
+.home_button {
+  margin-top: 1rem;
+  font-size:1.25rem;
+  background-color: #cdd0d0;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  width: 200px;
+  margin: 0 auto;
 }
