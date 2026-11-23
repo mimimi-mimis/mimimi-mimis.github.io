@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>天和ジェネレーター</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="javascript/tenho.js" defer></script>
+</head>
+<body>
+  <div class="app-wrapper">
+    <h1>天和ジェネレーター</h1>
+    <div class="description">
+      <p>天和ジェネレーターは、136枚の山から14枚を配るのを、天和が出るまで繰り返すツールです。</p>
+      <p>判定の仕組みは Discord bot「oroca-mimini」の /tenho・/yakuman と同じで、役満のチェックも行います。重なる役満は全部表示されます。</p>
+    </div>
+
+    <h2>天和</h2>
+    <p>天和が出るまで配牌を繰り返します。</p>
+    <div>
+      <button type="button" id="tenho-btn" class="generate-btn">天和が出るまで配牌</button>
+      <button type="button" id="tenho-stop" class="stop-btn" disabled>中止</button>
+    </div>
+    <p id="tenho-status" role="status" aria-live="polite"></p>
+    <div id="tenho-result" class="tenho-result" style="display: none;">
+      <div id="tenho-tiles"></div>
+    </div>
+
+    <h2>役満狙い</h2>
+    <p>指定した役満の天和が出るまで配牌を繰り返します。</p>
+    <p>※上限は1000万回で、超えたら強制ストップします。その間に天和が出た回数と、指定以外の役満が出た回数も表示します。</p>
+    <div>
+      <label for="yakuman-select">狙う役満:</label>
+      <select id="yakuman-select">
+        <option value="国士無双">国士無双</option>
+        <option value="四暗刻">四暗刻</option>
+        <option value="字一色">字一色</option>
+        <option value="大四喜">大四喜</option>
+        <option value="小四喜">小四喜</option>
+        <option value="大七星">大七星</option>
+        <option value="緑一色">緑一色</option>
+        <option value="紅孔雀">紅孔雀</option>
+        <option value="大三元">大三元</option>
+        <option value="九蓮宝燈">九蓮宝燈</option>
+        <option value="大車輪">大車輪</option>
+        <option value="大竹林">大竹林</option>
+        <option value="大数隣">大数隣</option>
+      </select>
+    </div>
+    <div>
+      <button type="button" id="yakuman-btn" class="generate-btn">役満の天和が出るまで配牌</button>
+      <button type="button" id="yakuman-stop" class="stop-btn" disabled>中止</button>
+    </div>
+    <p id="yakuman-status" role="status" aria-live="polite"></p>
+    <div id="yakuman-result" class="tenho-result" style="display: none;">
+      <div id="yakuman-tiles"></div>
+    </div>
+
+    <hr>
+    <p class="home_button"><a href="index.html">ホームに戻る</a></p>
+  </div>
+  <div style="text-align: center;">
+    <div>©2026 | site by mimimi-mimis</div>
+  </div>
+</body>
+</html>

@@ -116,3 +116,62 @@ h2 {
   width: 200px;
   margin: 0 auto;
 }
+.tenho_link {
+  display: block;
+  margin: 1rem 0;
+  font-size: 1.25rem;
+}
+
+.generate-btn {
+  margin-top: 1rem;
+  font-size: 1.25rem;
+  background-color: #1FD5AD;
+  color: white;
+  border: none;
+  padding: 16px 32px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  font-weight: bold;
+}
+
+.generate-btn:disabled {
+  background-color: #9aa5a1;
+  cursor: default;
+}
+
+.stop-btn {
+  margin-top: 1rem;
+  margin-left: 8px;
+  font-size: 1.25rem;
+  background-color: #cdd0d0;
+  color: #1a1a1a;
+  border: none;
+  padding: 16px 24px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.stop-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.tenho-result {
+  font-size: 1.25rem;
+  padding: 16px;
+  border-radius: var(--radius);
+  line-height: 1.6;
+}
+
+.tenho-result .tiles {
+  font-size: 2rem;
+  word-break: break-all;
+}
+
+#yakuman-select {
+  font-size: 1.1rem;
+  padding: 8px;
+  margin-top: 0.5rem;
+}
