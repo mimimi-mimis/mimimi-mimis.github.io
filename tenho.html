@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>天和ジェネレーター | mimimi-mimisの部屋</title>
   <link rel="stylesheet" href="css/style.css?v=20261123-4">
-  <script src="javascript/tenho.js?v=20261123-4" defer></script>
+  <script src="javascript/tenho.js?v=20261124-1" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -25,6 +25,18 @@
     <div class="description">
       <p>天和ジェネレーターは、136枚の山から14枚を配るのを、天和が出るまで繰り返すツールです。</p>
     </div>
+
+    <section class="panel">
+      <div class="field" style="justify-content: flex-start;">
+        <label for="speed-mode">使用するコア数:</label>
+        <select id="speed-mode">
+          <option value="low">低速（1コア）</option>
+          <option value="medium" selected>中速</option>
+          <option value="high">最速</option>
+        </select>
+      </div>
+      <p class="note">※最速は端末の負荷が高くなります。発熱やバッテリー消費が気になるときは低速・中速にしてください。</p>
+    </section>
 
     <section class="panel">
       <h2>天和</h2>

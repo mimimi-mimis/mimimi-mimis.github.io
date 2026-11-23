@@ -291,19 +291,33 @@ onmessage = (e) => {
 `;
 }
 
-const workerPool = { workers: null, busy: false };
+const workerPool = { byCount: {}, busy: false };
 
-function getWorkerPool() {
-  if (workerPool.workers) return workerPool.workers;
-  if (typeof Worker === 'undefined' || typeof Blob === 'undefined' || typeof URL === 'undefined') return null;
+// 速度モードから使うワーカー数 (≒コア数) を決める
+function workerCountForMode(mode) {
   const cores = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 2;
-  const n = Math.min(6, Math.max(1, cores - 1));
-  if (n < 2) return null;
+  const max = Math.min(6, Math.max(1, cores - 1));
+  if (mode === 'low') return 1;
+  if (mode === 'medium') return Math.max(1, Math.ceil(max / 2));
+  return max; // 'high'
+}
+
+function getSpeedMode() {
+  try {
+    const el = document.getElementById('speed-mode');
+    if (el && el.value) return el.value;
+  } catch (e) {}
+  return 'medium';
+}
+
+function getWorkerPool(count) {
+  if (workerPool.byCount[count]) return workerPool.byCount[count];
+  if (typeof Worker === 'undefined' || typeof Blob === 'undefined' || typeof URL === 'undefined') return null;
   try {
     const url = URL.createObjectURL(new Blob([buildWorkerSource()], { type: 'text/javascript' }));
     const workers = [];
-    for (let i = 0; i < n; i++) workers.push(new Worker(url));
-    workerPool.workers = workers;
+    for (let i = 0; i < count; i++) workers.push(new Worker(url));
+    workerPool.byCount[count] = workers;
     return workers;
   } catch (err) {
     return null;
@@ -399,7 +413,7 @@ function createRunner() {
     },
     run({ target = null, maxAttempts = Infinity, onProgress }) {
       // 並列実行 (上限なしの検索のみ対象; ワーカーが使えない/他で使用中ならフォールバック)
-      const workers = getWorkerPool();
+      const workers = getWorkerPool(workerCountForMode(getSpeedMode()));
       if (workers && !workerPool.busy && maxAttempts === Infinity) {
         workerPool.busy = true;
         const promise = runParallel(workers, { target, onProgress });
@@ -459,6 +473,26 @@ function createRunner() {
 }
 
 // ---- UI ----
+
+// 速度モードの初期化: 選択肢に実際のコア数を表示し、前回の選択を復元する
+(function initSpeedMode() {
+  if (typeof document === 'undefined') return;
+  const el = document.getElementById('speed-mode');
+  if (!el) return;
+  const label = (mode) => {
+    const n = workerCountForMode(mode);
+    return mode === 'low' ? `低速（${n}コア）` : mode === 'medium' ? `中速（${n}コア）` : `最速（${n}コア）`;
+  };
+  for (const opt of el.options) opt.textContent = label(opt.value);
+  try {
+    const saved = localStorage.getItem('tenho-speed-mode');
+    if (saved && ['low', 'medium', 'high'].includes(saved)) el.value = saved;
+  } catch (e) {}
+  el.addEventListener('change', () => {
+    try { localStorage.setItem('tenho-speed-mode', el.value); } catch (e) {}
+  });
+})();
+
 function setupGenerator(prefix, { targetSelectId = null } = {}) {
   const startBtn = document.getElementById(`${prefix}-btn`);
   const stopBtn = document.getElementById(`${prefix}-stop`);
