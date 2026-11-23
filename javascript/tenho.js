@@ -212,12 +212,201 @@ function formatCount(n) {
   return String(n);
 }
 
-// ---- 検索ランナー (画面を固めないよう時間単位でチャンク実行 + 中止対応) ----
+// ---- 検索ランナー ----
+// Web Worker が使える環境では複数ワーカーで並列に配り、最初に見つけたワーカーの結果を採用する。
+// 使えない環境では従来通りメインスレッドで分割実行する (フォールバック)。
+
+function buildWorkerSource() {
+  return `
+'use strict';
+const TENHOU_TERMINALS = ${JSON.stringify(TENHOU_TERMINALS)};
+const GREEN_MASK = ${JSON.stringify(GREEN_MASK)};
+const RED_MASK = ${JSON.stringify(RED_MASK)};
+${canFormMelds.toString()}
+${canFormTriplets.toString()}
+${isTenhou.toString()}
+${isSuuankou.toString()}
+${yakumanNames.toString()}
+${createDrawState.toString()}
+${drawInto.toString()}
+
+let running = false;
+let target = null;
+let attempts = 0;
+let tenhouCount = 0;
+let others = {};
+let state = createDrawState();
+let lastPost = 0;
+
+function postProgress(force) {
+  const now = Date.now();
+  if (!force && now - lastPost < 150) return;
+  lastPost = now;
+  postMessage({ type: 'progress', attempts, tenhouCount, others });
+}
+
+function chunk() {
+  if (!running) return;
+  const deadline = Date.now() + 40;
+  while (Date.now() < deadline) {
+    for (let k = 0; k < 2000; k++) {
+      attempts++;
+      const counts = drawInto(state);
+      if (isTenhou(counts)) {
+        const yakumans = yakumanNames(counts);
+        if (target === null) {
+          running = false;
+          postMessage({ type: 'found', attempts, counts: Array.from(counts), yakumans, tenhouCount: tenhouCount + 1, others });
+          return;
+        }
+        tenhouCount++;
+        if (yakumans.includes(target)) {
+          running = false;
+          postMessage({ type: 'found', attempts, counts: Array.from(counts), yakumans, tenhouCount, others });
+          return;
+        }
+        for (const name of yakumans) others[name] = (others[name] || 0) + 1;
+      }
+    }
+  }
+  postProgress(false);
+  setTimeout(chunk, 0);
+}
+
+onmessage = (e) => {
+  const msg = e.data;
+  if (msg.type === 'start') {
+    target = msg.target;
+    attempts = 0;
+    tenhouCount = 0;
+    others = {};
+    state = createDrawState();
+    running = true;
+    chunk();
+  } else if (msg.type === 'stop') {
+    running = false;
+    postMessage({ type: 'stopped', attempts, tenhouCount, others });
+  }
+};
+`;
+}
+
+const workerPool = { workers: null, busy: false };
+
+function getWorkerPool() {
+  if (workerPool.workers) return workerPool.workers;
+  if (typeof Worker === 'undefined' || typeof Blob === 'undefined' || typeof URL === 'undefined') return null;
+  const cores = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 2;
+  const n = Math.min(6, Math.max(1, cores - 1));
+  if (n < 2) return null;
+  try {
+    const url = URL.createObjectURL(new Blob([buildWorkerSource()], { type: 'text/javascript' }));
+    const workers = [];
+    for (let i = 0; i < n; i++) workers.push(new Worker(url));
+    workerPool.workers = workers;
+    return workers;
+  } catch (err) {
+    return null;
+  }
+}
+
+function runParallel(workers, { target, onProgress }) {
+  return new Promise((resolve) => {
+    const latest = workers.map(() => ({ attempts: 0, tenhouCount: 0, others: {} }));
+    let found = null;
+    let stoppedCount = 0;
+    let finished = false;
+    let cancelledRun = false;
+
+    function totals() {
+      let attempts = 0, tenhouCount = 0;
+      const others = {};
+      for (const s of latest) {
+        attempts += s.attempts;
+        tenhouCount += s.tenhouCount;
+        for (const [k, v] of Object.entries(s.others)) others[k] = (others[k] || 0) + v;
+      }
+      return { attempts, tenhouCount, others };
+    }
+
+    function finish(extra) {
+      if (finished) return;
+      finished = true;
+      workers.forEach((w) => { w.onmessage = null; w.onerror = null; });
+      workerPool.busy = false;
+      const t = totals();
+      if (cancelledRun) {
+        resolve({ cancelled: true, attempts: t.attempts, tenhouCount: t.tenhouCount, otherYakumans: t.others });
+      } else if (found) {
+        resolve({
+          attempts: t.attempts,
+          counts: found.counts,
+          yakumans: found.yakumans,
+          tenhouCount: t.tenhouCount,
+          otherYakumans: t.others,
+        });
+      } else {
+        resolve({ cancelled: true, attempts: t.attempts, tenhouCount: t.tenhouCount, otherYakumans: t.others });
+      }
+      if (extra) extra();
+    }
+
+    function stopAll() {
+      workers.forEach((w) => { try { w.postMessage({ type: 'stop' }); } catch (e) {} });
+      // 応答が来ないワーカーがいても固まらないよう保険
+      setTimeout(() => finish(), 600);
+    }
+
+    workers.forEach((w, idx) => {
+      w.onmessage = (e) => {
+        const msg = e.data;
+        if (msg.type === 'progress') {
+          latest[idx] = { attempts: msg.attempts, tenhouCount: msg.tenhouCount, others: msg.others || {} };
+          if (onProgress && !found) {
+            const t = totals();
+            onProgress(t.attempts, t.tenhouCount);
+          }
+        } else if (msg.type === 'found') {
+          latest[idx] = { attempts: msg.attempts, tenhouCount: msg.tenhouCount, others: msg.others || {} };
+          if (!found) {
+            found = msg;
+            stopAll();
+          }
+        } else if (msg.type === 'stopped') {
+          latest[idx] = { attempts: msg.attempts, tenhouCount: msg.tenhouCount, others: msg.others || {} };
+          stoppedCount++;
+          if ((found || cancelledRun) && stoppedCount >= workers.length) finish();
+        }
+      };
+      w.onerror = () => {};
+      w.postMessage({ type: 'start', target });
+    });
+
+    runParallel._cancelCurrent = () => {
+      cancelledRun = true;
+      stopAll();
+    };
+  });
+}
+
 function createRunner() {
   let cancelled = false;
+  let parallelCancel = null;
   return {
-    cancel() { cancelled = true; },
+    cancel() {
+      cancelled = true;
+      if (parallelCancel) parallelCancel();
+    },
     run({ target = null, maxAttempts = Infinity, onProgress }) {
+      // 並列実行 (上限なしの検索のみ対象; ワーカーが使えない/他で使用中ならフォールバック)
+      const workers = getWorkerPool();
+      if (workers && !workerPool.busy && maxAttempts === Infinity) {
+        workerPool.busy = true;
+        const promise = runParallel(workers, { target, onProgress });
+        parallelCancel = () => runParallel._cancelCurrent && runParallel._cancelCurrent();
+        return promise;
+      }
+      // フォールバック: メインスレッドで分割実行
       return new Promise((resolve) => {
         let attempts = 0;
         let tenhouCount = 0;
@@ -230,10 +419,8 @@ function createRunner() {
             resolve({ cancelled: true, attempts, tenhouCount, otherYakumans });
             return;
           }
-          // 1チャンクは約40msまで回す (進捗表示の更新は150msに1回まで)
           const deadline = performance.now() + 40;
           while (performance.now() < deadline && attempts < maxAttempts) {
-            // 内側ループ: 関数呼び出しと時刻チェックの回数を減らす
             for (let k = 0; k < 2000 && attempts < maxAttempts; k++) {
               attempts++;
               const counts = drawInto(state);
