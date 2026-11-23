@@ -1,5 +1,5 @@
 // 天和ジェネレーター
-// 天和・役満の判定ロジック
+// 天和・役満の判定ロジック (高速化版: 配列の使い回しで割り当てを削減)
 // 牌の種類は 0-33: 0-8=萬子, 9-17=筒子, 18-26=索子, 27-33=字牌(東南西北白發中)
 
 const TILE_EMOJIS = [
@@ -17,7 +17,14 @@ const YAKUMAN_LIST = [
 ];
 const YAKUMAN_MAX_ATTEMPTS = Infinity; // 上限なし (中止ボタンで止める)
 
+// 緑一色 / 紅孔雀 の対象牌マスク
+const GREEN_MASK = new Array(34).fill(false);
+for (const t of [19, 20, 21, 23, 25, 32]) GREEN_MASK[t] = true;
+const RED_MASK = new Array(34).fill(false);
+for (const t of [18, 22, 24, 26, 33]) RED_MASK[t] = true;
+
 // 残りの牌が全部 面子(順子/刻子) に分解できれば true
+// counts を直接書き換えて復元する (コピーを作らない)
 function canFormMelds(counts) {
   let i = 0;
   while (i < 34 && counts[i] === 0) i++;
@@ -39,22 +46,24 @@ function canFormMelds(counts) {
 function isTenhou(counts) {
   // 七対子
   let pairs = 0;
-  for (const v of counts) if (v === 2) pairs++;
+  for (let i = 0; i < 34; i++) if (counts[i] === 2) pairs++;
   if (pairs === 7) return true;
   // 国士無双
-  let kokushi = true;
   let termSum = 0;
-  for (const t of TENHOU_TERMINALS) {
+  let kokushi = true;
+  for (let k = 0; k < TENHOU_TERMINALS.length; k++) {
+    const t = TENHOU_TERMINALS[k];
     if (counts[t] < 1) { kokushi = false; break; }
     termSum += counts[t];
   }
   if (kokushi && termSum === 14) return true;
-  // 通常形: 雀頭を1つ抜いて、残りが全部面子
+  // 通常形: 雀頭を1つ抜いて、残りが全部面子 (counts を直接使う)
   for (let pair = 0; pair < 34; pair++) {
     if (counts[pair] >= 2) {
-      const rest = counts.slice();
-      rest[pair] -= 2;
-      if (canFormMelds(rest)) return true;
+      counts[pair] -= 2;
+      const ok = canFormMelds(counts);
+      counts[pair] += 2;
+      if (ok) return true;
     }
   }
   return false;
@@ -78,9 +87,10 @@ function canFormTriplets(counts) {
 function isSuuankou(counts) {
   for (let pair = 0; pair < 34; pair++) {
     if (counts[pair] >= 2) {
-      const rest = counts.slice();
-      rest[pair] -= 2;
-      if (canFormTriplets(rest)) return true;
+      counts[pair] -= 2;
+      const ok = canFormTriplets(counts);
+      counts[pair] += 2;
+      if (ok) return true;
     }
   }
   return false;
@@ -89,43 +99,50 @@ function isSuuankou(counts) {
 // 和了形の counts から、該当する役満の名前リストを返す
 function yakumanNames(counts) {
   const names = [];
-  const winds = counts.slice(27, 31); // 東南西北
-  const dragons = counts.slice(31, 34); // 白發中
   // 国士無双
   let termSum = 0;
   let kokushi = true;
-  for (const t of TENHOU_TERMINALS) {
+  for (let k = 0; k < TENHOU_TERMINALS.length; k++) {
+    const t = TENHOU_TERMINALS[k];
     if (counts[t] < 1) { kokushi = false; break; }
     termSum += counts[t];
   }
   if (kokushi && termSum === 14) names.push('国士無双');
   // 大七星 (字牌の七対子)
   let pairs = 0;
-  for (const v of counts) if (v === 2) pairs++;
+  for (let i = 0; i < 34; i++) if (counts[i] === 2) pairs++;
   let honorSum = 0;
   for (let i = 27; i < 34; i++) honorSum += counts[i];
   if (pairs === 7 && honorSum === 14) names.push('大七星');
-  // 大四喜 / 小四喜
-  if (winds.every((v) => v >= 3)) {
+  // 大四喜 / 小四喜 (東南西北 = 27-30)
+  const w0 = counts[27], w1 = counts[28], w2 = counts[29], w3 = counts[30];
+  const windTriplets = (w0 >= 3) + (w1 >= 3) + (w2 >= 3) + (w3 >= 3);
+  if (windTriplets === 4) {
     names.push('大四喜');
-  } else if (winds.filter((v) => v >= 3).length === 3 && winds.some((v) => v === 2)) {
+  } else if (windTriplets === 3 && (w0 === 2 || w1 === 2 || w2 === 2 || w3 === 2)) {
     names.push('小四喜');
   }
-  // 大三元
-  if (dragons.every((v) => v >= 3)) names.push('大三元');
+  // 大三元 (白發中 = 31-33)
+  if (counts[31] >= 3 && counts[32] >= 3 && counts[33] >= 3) names.push('大三元');
   // 字一色
   if (honorSum === 14) names.push('字一色');
   // 緑一色 (索子の2,3,4,6,8 と 發 だけ)
-  const green = [19, 20, 21, 23, 25, 32];
-  if (counts.every((v, t) => green.includes(t) || v === 0)) names.push('緑一色');
+  let greenOk = true;
+  for (let t = 0; t < 34; t++) if (counts[t] > 0 && !GREEN_MASK[t]) { greenOk = false; break; }
+  if (greenOk) names.push('緑一色');
   // 紅孔雀 (索子の1,5,7,9 と 中 だけ)
-  const red = [18, 22, 24, 26, 33];
-  if (counts.every((v, t) => red.includes(t) || v === 0)) names.push('紅孔雀');
+  let redOk = true;
+  for (let t = 0; t < 34; t++) if (counts[t] > 0 && !RED_MASK[t]) { redOk = false; break; }
+  if (redOk) names.push('紅孔雀');
   // 九蓮宝燈 (1種の数牌で 1112345678999 + 1枚)
   for (const base of [0, 9, 18]) {
-    const suit = counts.slice(base, base + 9);
-    const suitSum = suit.reduce((a, b) => a + b, 0);
-    if (suitSum === 14 && suit[0] >= 3 && suit[8] >= 3 && suit.every((v) => v >= 1)) {
+    let suitSum = 0;
+    let allPresent = true;
+    for (let i = 0; i < 9; i++) {
+      suitSum += counts[base + i];
+      if (counts[base + i] < 1) allPresent = false;
+    }
+    if (suitSum === 14 && counts[base] >= 3 && counts[base + 8] >= 3 && allPresent) {
       names.push('九蓮宝燈');
       break;
     }
@@ -134,26 +151,54 @@ function yakumanNames(counts) {
   for (const [base, name] of [[9, '大車輪'], [18, '大竹林'], [0, '大数隣']]) {
     let ok = true;
     for (let i = 1; i <= 7; i++) if (counts[base + i] !== 2) { ok = false; break; }
-    let suitSum = 0;
-    for (let i = 0; i < 9; i++) suitSum += counts[base + i];
-    if (ok && suitSum === 14) names.push(name);
+    if (ok) {
+      let suitSum = 0;
+      for (let i = 0; i < 9; i++) suitSum += counts[base + i];
+      if (suitSum === 14) names.push(name);
+    }
   }
   // 四暗刻
   if (isSuuankou(counts)) names.push('四暗刻');
   return names;
 }
 
-// 山 (各牌4枚・全136枚) から14枚引いた counts を返す
-const wall = Array.from({ length: 136 }, (_, i) => i);
-function drawCounts() {
-  const counts = new Array(34).fill(0);
-  // 部分 Fisher-Yates で先頭14枚を抽選 (Python の random.sample と同分布)
+// 配牌用の使い回しバッファ (検索ごとに1セット)
+function createDrawState() {
+  return {
+    counts: new Int32Array(34),
+    drawn: new Int32Array(14),
+    touched: new Int32Array(34),
+    touchedCount: 0,
+  };
+}
+
+// 山 (各牌4枚・全136枚) から14枚引いて state.counts にセットする
+// 重複なし抽選 (136枚から14枚を一様に選ぶ)
+function drawInto(state) {
+  const { counts, drawn, touched } = state;
+  for (let k = 0; k < state.touchedCount; k++) counts[touched[k]] = 0;
+  state.touchedCount = 0;
   for (let i = 0; i < 14; i++) {
-    const j = i + Math.floor(Math.random() * (136 - i));
-    const tmp = wall[i]; wall[i] = wall[j]; wall[j] = tmp;
-    counts[Math.floor(wall[i] / 4)]++;
+    let x;
+    let dup;
+    do {
+      x = (Math.random() * 136) | 0;
+      dup = false;
+      for (let k = 0; k < i; k++) if (drawn[k] === x) { dup = true; break; }
+    } while (dup);
+    drawn[i] = x;
+    const tile = (x / 4) | 0;
+    if (counts[tile] === 0) touched[state.touchedCount++] = tile;
+    counts[tile]++;
   }
   return counts;
+}
+
+// 単発用 (テスト等): 新しい counts 配列を返す
+const _singleState = createDrawState();
+function drawCounts() {
+  drawInto(_singleState);
+  return Array.from(_singleState.counts);
 }
 
 function handTiles(counts) {
@@ -167,7 +212,7 @@ function formatCount(n) {
   return String(n);
 }
 
-// ---- 検索ランナー (画面を固めないようチャンク実行 + 中止対応) ----
+// ---- 検索ランナー (画面を固めないよう時間単位でチャンク実行 + 中止対応) ----
 function createRunner() {
   let cancelled = false;
   return {
@@ -177,34 +222,43 @@ function createRunner() {
         let attempts = 0;
         let tenhouCount = 0;
         const otherYakumans = {};
+        const state = createDrawState();
+        let lastProgressAt = 0;
         cancelled = false;
         function chunk() {
           if (cancelled) {
             resolve({ cancelled: true, attempts, tenhouCount, otherYakumans });
             return;
           }
-          const chunkSize = 3000;
-          const end = Math.min(attempts + chunkSize, maxAttempts);
-          while (attempts < end) {
-            attempts++;
-            const counts = drawCounts();
-            if (isTenhou(counts)) {
-              const yakumans = yakumanNames(counts);
-              if (target === null) {
-                resolve({ attempts, counts, yakumans, tenhouCount: tenhouCount + 1, otherYakumans });
-                return;
-              }
-              tenhouCount++;
-              if (yakumans.includes(target)) {
-                resolve({ attempts, counts, yakumans, tenhouCount, otherYakumans });
-                return;
-              }
-              for (const name of yakumans) {
-                otherYakumans[name] = (otherYakumans[name] || 0) + 1;
+          // 1チャンクは約40msまで回す (進捗表示の更新は150msに1回まで)
+          const deadline = performance.now() + 40;
+          while (performance.now() < deadline && attempts < maxAttempts) {
+            // 内側ループ: 関数呼び出しと時刻チェックの回数を減らす
+            for (let k = 0; k < 2000 && attempts < maxAttempts; k++) {
+              attempts++;
+              const counts = drawInto(state);
+              if (isTenhou(counts)) {
+                const yakumans = yakumanNames(counts);
+                if (target === null) {
+                  resolve({ attempts, counts: Array.from(counts), yakumans, tenhouCount: tenhouCount + 1, otherYakumans });
+                  return;
+                }
+                tenhouCount++;
+                if (yakumans.includes(target)) {
+                  resolve({ attempts, counts: Array.from(counts), yakumans, tenhouCount, otherYakumans });
+                  return;
+                }
+                for (const name of yakumans) {
+                  otherYakumans[name] = (otherYakumans[name] || 0) + 1;
+                }
               }
             }
           }
-          if (onProgress) onProgress(attempts, tenhouCount);
+          const now = performance.now();
+          if (onProgress && now - lastProgressAt >= 150) {
+            lastProgressAt = now;
+            onProgress(attempts, tenhouCount);
+          }
           if (attempts >= maxAttempts) {
             resolve({ attempts, counts: null, yakumans: null, tenhouCount, otherYakumans });
             return;
@@ -299,5 +353,5 @@ if (typeof document !== 'undefined') {
 
 // Node でのテスト用 (ブラウザでは無視される)
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { isTenhou, yakumanNames, drawCounts, handTiles, YAKUMAN_LIST };
+  module.exports = { isTenhou, yakumanNames, drawCounts, handTiles, YAKUMAN_LIST, createDrawState, drawInto };
 }
