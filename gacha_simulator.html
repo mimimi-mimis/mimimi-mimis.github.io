@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ガチャシュミレーター | mimimi-mimisの部屋</title>
-  <link rel="stylesheet" href="css/style.css?v=20261123-3">
-  <script src="javascript/gacha.js?v=20261123-3" defer></script>
+  <link rel="stylesheet" href="css/style.css?v=20261123-4">
+  <script src="javascript/gacha.js?v=20261123-4" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -58,7 +58,7 @@
       <div class="btn-row">
         <button type="button" id="houshou-btn" class="generate-btn">封結晶 10連</button>
         <button type="button" id="kami-btn" class="generate-btn">神結晶 10連</button>
-        <button type="button" id="skip-btn" class="stop-btn" disabled>演出スキップ（全部めくる）</button>
+        <label class="skip-toggle"><input type="checkbox" id="skip-checkbox"> 演出スキップ</label>
       </div>
       <div id="gacha-area" style="display: none; flex-direction: column; gap: 16px;">
         <div id="gacha-grid" class="gacha-grid"></div>

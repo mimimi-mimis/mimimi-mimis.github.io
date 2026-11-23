@@ -148,16 +148,20 @@ function doPull(kind) {
     card.addEventListener('click', () => flipCard(card));
     grid.appendChild(card);
   });
-  document.getElementById('skip-btn').disabled = false;
   document.getElementById('gacha-area').style.display = 'flex';
+  if (document.getElementById('skip-checkbox').checked) {
+    document.querySelectorAll('.gacha-card').forEach((c) => flipCard(c));
+  }
 }
 
 if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', () => {
   updateStats();
   document.getElementById('houshou-btn').addEventListener('click', () => doPull('houshou'));
   document.getElementById('kami-btn').addEventListener('click', () => doPull('kami'));
-  document.getElementById('skip-btn').addEventListener('click', () => {
-    document.querySelectorAll('.gacha-card').forEach((c) => flipCard(c));
+  document.getElementById('skip-checkbox').addEventListener('change', (e) => {
+    if (e.target.checked) {
+      document.querySelectorAll('.gacha-card').forEach((c) => flipCard(c));
+    }
   });
 });
 

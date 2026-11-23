@@ -599,3 +599,30 @@ hr {
   flex-direction: column;
   gap: 4px;
 }
+
+.skip-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 1rem;
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  padding: 12px 20px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.skip-toggle input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+
+.skip-toggle:has(input:checked) {
+  border-color: var(--brand);
+  background: #eef2fd;
+  color: var(--brand-dark);
+}
