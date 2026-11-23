@@ -1,5 +1,5 @@
 // 天和ジェネレーター
-// oroca-mimini の /tenho・/yakuman と同じ判定ロジックを移植したもの。
+// 天和・役満の判定ロジック
 // 牌の種類は 0-33: 0-8=萬子, 9-17=筒子, 18-26=索子, 27-33=字牌(東南西北白發中)
 
 const TILE_EMOJIS = [
@@ -15,7 +15,7 @@ const YAKUMAN_LIST = [
   '国士無双', '四暗刻', '字一色', '大四喜', '小四喜', '大七星',
   '緑一色', '紅孔雀', '大三元', '九蓮宝燈', '大車輪', '大竹林', '大数隣',
 ];
-const YAKUMAN_MAX_ATTEMPTS = 10_000_000; // 過負荷防止の強制ストップ回数 (bot版と同じ)
+const YAKUMAN_MAX_ATTEMPTS = Infinity; // 上限なし (中止ボタンで止める)
 
 // 残りの牌が全部 面子(順子/刻子) に分解できれば true
 function canFormMelds(counts) {
@@ -86,7 +86,7 @@ function isSuuankou(counts) {
   return false;
 }
 
-// 和了形の counts から、該当する役満の名前リストを返す (bot版と同順・同条件)
+// 和了形の counts から、該当する役満の名前リストを返す
 function yakumanNames(counts) {
   const names = [];
   const winds = counts.slice(27, 31); // 東南西北
@@ -261,7 +261,7 @@ function setupGenerator(prefix, { targetSelectId = null } = {}) {
     resultEl.style.display = 'block';
 
     if (res.counts === null) {
-      // 強制ストップ (bot版と同じ文言・集計)
+      // 上限到達時 (現在は上限なしのため通常は到達しない)
       statusEl.textContent = '';
       tilesEl.innerHTML =
         `<p>${target}の天和は${formatCount(res.attempts)}回配っても出ませんでした…</p>` +

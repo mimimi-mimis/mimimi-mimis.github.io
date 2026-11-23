@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>天和ジェネレーター | mimimi-mimisの部屋</title>
   <link rel="stylesheet" href="css/style.css?v=20261123-2">
-  <script src="javascript/tenho.js" defer></script>
+  <script src="javascript/tenho.js?v=20261123-2" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -24,7 +24,6 @@
     <h1 class="page-title">天和ジェネレーター</h1>
     <div class="description">
       <p>天和ジェネレーターは、136枚の山から14枚を配るのを、天和が出るまで繰り返すツールです。</p>
-      <p>判定の仕組みは Discord bot「oroca-mimini」の /tenho・/yakuman と同じで、役満のチェックも行います。重なる役満は全部表示されます。</p>
     </div>
 
     <section class="panel">
@@ -43,7 +42,7 @@
     <section class="panel">
       <h2>役満狙い</h2>
       <p>指定した役満の天和が出るまで配牌を繰り返します。</p>
-      <p class="note">※上限は1000万回で、超えたら強制ストップします。その間に天和が出た回数と、指定以外の役満が出た回数も表示します。</p>
+      <p class="note">※出るまで配り続けるので、途中でやめたいときは「中止」ボタンを押してください。</p>
       <div class="field" style="justify-content: flex-start;">
         <label for="yakuman-select">狙う役満:</label>
         <select id="yakuman-select">
