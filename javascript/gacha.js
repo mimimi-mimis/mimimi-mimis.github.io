@@ -1,16 +1,14 @@
 // ガチャシュミレーター
 // 確率は提供割合の画像通り:
-//   通常枠: 仲間 7.500% (うちPU仲間 0.500%、特定の仲間(PU以外) 0.055%),
-//           絵札★5 15.000%, 絵札★4 35.000%, 絵札★3 42.500%
-//   仲間1人確定枠 (神結晶10連の10枚目): PU仲間 10.000%, 特定の仲間 0.714%, その他仲間 89.286%
-//   ※特定の仲間はPUではないので、天井カウントのリセット対象にはならない
+//   通常枠: 仲間 7.500% (うちPU仲間 0.500%), 絵札★5 15.000%,
+//           絵札★4 35.000%, 絵札★3 42.500%
+//   仲間1人確定枠 (神結晶10連の10枚目): PU仲間 10.000%, その他仲間 90.000%
 // 天井: 400連。PUが出たら、その10連が終わったタイミングでカウントをリセット。
 //       400連に到達した枠はPU仲間確定。
 
 const RESULT_TYPES = {
   pu_nakama: { label: 'PU仲間', stars: '', cssClass: 'pu', isPU: true },
   nakama: { label: '仲間', stars: '', cssClass: 'nakama', isPU: false },
-  tokutei: { label: '特定の仲間', stars: '', cssClass: 'nakama', isPU: false },
   efuda5: { label: '絵札', stars: '★★★★★', cssClass: 'r5', isPU: false },
   efuda4: { label: '絵札', stars: '★★★★', cssClass: 'r4', isPU: false },
   efuda3: { label: '絵札', stars: '★★★', cssClass: 'r3', isPU: false },
@@ -19,8 +17,7 @@ const RESULT_TYPES = {
 // 通常枠 (合計 100.000%)
 const NORMAL_RATES = [
   { key: 'pu_nakama', rate: 0.5 },
-  { key: 'tokutei', rate: 0.055 },
-  { key: 'nakama', rate: 6.945 },
+  { key: 'nakama', rate: 7.0 },
   { key: 'efuda5', rate: 15.0 },
   { key: 'efuda4', rate: 35.0 },
   { key: 'efuda3', rate: 42.5 },
@@ -29,8 +26,7 @@ const NORMAL_RATES = [
 // 仲間1人確定枠 (合計 100.000%)
 const GUARANTEED_RATES = [
   { key: 'pu_nakama', rate: 10.0 },
-  { key: 'tokutei', rate: 0.714 },
-  { key: 'nakama', rate: 89.286 },
+  { key: 'nakama', rate: 90.0 },
 ];
 
 const CEILING_MAX = 400;
@@ -101,7 +97,7 @@ function showSummary() {
   const counts = {};
   for (const r of state.currentResults) counts[r.key] = (counts[r.key] || 0) + 1;
   const parts = [];
-  for (const key of ['pu_nakama', 'tokutei', 'nakama', 'efuda5', 'efuda4', 'efuda3']) {
+  for (const key of ['pu_nakama', 'nakama', 'efuda5', 'efuda4', 'efuda3']) {
     if (counts[key]) {
       const t = RESULT_TYPES[key];
       parts.push(`${t.label}${t.stars} ×${counts[key]}`);
@@ -126,7 +122,7 @@ function doPull(kind) {
   for (const r of results) {
     const t = RESULT_TYPES[r.key];
     if (t.isPU) state.puCount++;
-    if (r.key === 'nakama' || r.key === 'pu_nakama' || r.key === 'tokutei') state.nakamaCount++;
+    if (r.key === 'nakama' || r.key === 'pu_nakama') state.nakamaCount++;
     if (r.key === 'efuda5') state.efuda5Count++;
   }
   updateStats();
