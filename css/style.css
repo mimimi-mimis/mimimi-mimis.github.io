@@ -445,3 +445,157 @@ hr {
   color: #ffd166;
   font-size: 1.35em;
 }
+
+/* ---------- ガチャ ---------- */
+.rate-tables {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.rate-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.rate-table caption {
+  font-weight: 700;
+  text-align: left;
+  padding-bottom: 6px;
+  color: var(--brand-dark);
+}
+
+.rate-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 6px 4px;
+}
+
+.rate-table td:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.gacha-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 620px) {
+  .gacha-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.gacha-card {
+  font: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  perspective: 600px;
+  aspect-ratio: 3 / 4;
+}
+
+.card-inner {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.5s ease;
+}
+
+.gacha-card.flipped .card-inner {
+  transform: rotateY(180deg);
+}
+
+.card-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 12px;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  padding: 8px;
+  text-align: center;
+}
+
+.card-back {
+  background: linear-gradient(150deg, var(--brand) 0%, var(--brand-dark) 100%);
+  color: #fff;
+  font-size: 1.8rem;
+  font-weight: 800;
+  border: 2px solid var(--brand-dark);
+}
+
+.card-front {
+  transform: rotateY(180deg);
+  border: 2px solid var(--line);
+  background: #f7f8fc;
+  color: var(--ink);
+}
+
+.card-front .card-stars {
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+}
+
+.card-front .card-label {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.card-front.r3 {
+  background: #eceff5;
+  border-color: #c3cad9;
+}
+
+.card-front.r4 {
+  background: #f1e8fb;
+  border-color: #b18fe8;
+  color: #4c2a85;
+}
+
+.card-front.r5 {
+  background: linear-gradient(160deg, #fff6d8 0%, #ffe9a3 100%);
+  border-color: #d9a92c;
+  color: #6b4e00;
+}
+
+.card-front.nakama {
+  background: linear-gradient(160deg, #e3f0ff 0%, #c2dbff 100%);
+  border-color: #5b8dd9;
+  color: #1d3f6e;
+}
+
+.card-front.pu {
+  background: linear-gradient(160deg, #ffe3ec 0%, #ffd166 55%, #fff3b0 100%);
+  border-color: #e85d9e;
+  color: #6e1039;
+  box-shadow: 0 0 14px rgba(232, 93, 158, 0.55);
+}
+
+.pu-badge {
+  font-size: 0.68rem;
+  font-weight: 800;
+  background: #e85d9e;
+  color: #fff;
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.gacha-summary {
+  background: #f7f8fc;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
