@@ -1,27 +1,56 @@
 <!DOCTYPE html>
 <html lang="ja">
-  
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>mimimi-mimisの部屋</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
-
 <body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="logo" href="index.html">mimimi-mimisの部屋</a>
+      <nav class="nav">
+        <a href="index.html" aria-current="page">ホーム</a>
+        <a href="fast_checker.html">速力チェッカー</a>
+        <a href="gacha_simulator.html">ガチャシュミレーター</a>
+        <a href="tenho.html">天和ジェネレーター</a>
+      </nav>
+    </div>
+  </header>
+
   <div class="app-wrapper">
-    <h1>よくわからん謎のサイト</h1>
-    <p>このサイトは、色々な機能をまとめたサイトです</p>
+    <section class="hero">
+      <h1>よくわからん謎のサイト</h1>
+      <p>このサイトは、色々な機能をまとめたサイトです</p>
+    </section>
+
     <h2>機能一覧</h2>
-    <ul>
-      <li class="fast_link"><a href="fast_checker.html">速力チェッカー</a></li>
-      <li class="gacha_link"><a href="gacha_simulator.html">ガチャシュミレーター</a></li>
-      <li class="tenho_link"><a href="tenho.html">天和ジェネレーター</a></li>
+    <ul class="feature-grid">
+      <li>
+        <a class="feature-card" href="fast_checker.html">
+          <span class="icon">⚡</span>
+          <span class="card-title">速力チェッカー</span>
+          <span class="card-desc">2人のキャラクターの速力を比較し、行動順が入れ替わるかどうかを判定します</span>
+        </a>
+      </li>
+      <li>
+        <a class="feature-card" href="gacha_simulator.html">
+          <span class="icon">🎲</span>
+          <span class="card-title">ガチャシュミレーター<span class="badge">未完成</span></span>
+          <span class="card-desc">実際のガチャと同じ確率で10連ガチャを回します</span>
+        </a>
+      </li>
+      <li>
+        <a class="feature-card" href="tenho.html">
+          <span class="icon">🀄</span>
+          <span class="card-title">天和ジェネレーター</span>
+          <span class="card-desc">天和が出るまで配牌を繰り返します。役満チェック付き</span>
+        </a>
+      </li>
     </ul>
-    <hr>
-    <p class="home_button"><a href="index.html">ホームに戻る</a></p>
   </div>
-  <div style="text-align: center;">
-    <div>©2026 | site by mimimi-mimis</div>
-  </div>
+
+  <footer class="site-footer">©2026 | site by mimimi-mimis</footer>
 </body>
 </html>

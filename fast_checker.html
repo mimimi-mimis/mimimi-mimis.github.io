@@ -2,58 +2,87 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>速力チェッカー</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>速力チェッカー | mimimi-mimisの部屋</title>
   <link rel="stylesheet" href="css/style.css">
   <script src="javascript/fast_checker.js" defer></script>
-  </head>
-  <body>
-    <div class="app-wrapper">
-      <h1>速力チェッカー</h1>
-      <div class="description">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="logo" href="index.html">mimimi-mimisの部屋</a>
+      <nav class="nav">
+        <a href="index.html">ホーム</a>
+        <a href="fast_checker.html" aria-current="page">速力チェッカー</a>
+        <a href="gacha_simulator.html">ガチャシュミレーター</a>
+        <a href="tenho.html">天和ジェネレーター</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="app-wrapper">
+    <h1 class="page-title">速力チェッカー</h1>
+    <div class="description">
       <p>速力チェッカーは、2人のキャラクターの速力を比較し、行動順が入れ替わるかどうかを判定するツールです。</p>
       <p>※行動順は1倍~0.64倍の補正がされた後に判定される仕様です。</p>
-      </div>
+    </div>
 
+    <section class="panel">
       <h2>速力計算</h2>
       <form id="speed-form">
-      <p class="human">1人目</p>
-        <label for="speed1">速力:</label>
-        <input type="number" id="speed1" name="speed1" required>
-        <br>
-        <label for="speed1">Ⅰバフ:</label>
-        <input type="number" id="speed_buff1_1" name="speed_buff1_1" min="-10" max="10" step="1" >
-        <br>
-        <label for="speed1">Ⅱバフ:</label>
-        <input type="number" id="speed_buff1_2" name="speed_buff1_2" min="-10" max="10" step="1" >
-        <br>
-        <label for="speed1">凍結:</label>
-        <input type="number" id="speed_ice1" name="speed_ice1" min="0" max="5" step="1" >
-        <br>
-      <p class="human">2人目</p>
-        <label for="speed2">速力:</label>
-        <input type="number" id="speed2" name="speed2" >
-        <br>
-        <label for="speed2">Ⅰバフ:</label>
-        <input type="number" id="speed_buff2_1" name="speed_buff2_1" min="-10" max="10" step="1" >
-        <br>
-        <label for="speed2">Ⅱバフ:</label>
-        <input type="number" id="speed_buff2_2" name="speed_buff2_2" min="-10" max="10" step="1" >
-        <br>
-        <label for="speed2">凍結:</label>
-        <input type="number" id="speed_ice2" name="speed_ice2" min="0" max="5" step="1" >
-        <br>
-        <button type="submit" id="calculate-btn">計算</button>
-        <div id="calculation-result" role="status" aria-live="polite">
+        <div class="player-grid">
+          <div class="player-card">
+            <p class="human">1人目</p>
+            <div class="field">
+              <label for="speed1">速力:</label>
+              <input type="number" id="speed1" name="speed1" required>
+            </div>
+            <div class="field">
+              <label for="speed_buff1_1">Ⅰバフ:</label>
+              <input type="number" id="speed_buff1_1" name="speed_buff1_1" min="-10" max="10" step="1">
+            </div>
+            <div class="field">
+              <label for="speed_buff1_2">Ⅱバフ:</label>
+              <input type="number" id="speed_buff1_2" name="speed_buff1_2" min="-10" max="10" step="1">
+            </div>
+            <div class="field">
+              <label for="speed_ice1">凍結:</label>
+              <input type="number" id="speed_ice1" name="speed_ice1" min="0" max="5" step="1">
+            </div>
+          </div>
+          <div class="player-card">
+            <p class="human">2人目</p>
+            <div class="field">
+              <label for="speed2">速力:</label>
+              <input type="number" id="speed2" name="speed2">
+            </div>
+            <div class="field">
+              <label for="speed_buff2_1">Ⅰバフ:</label>
+              <input type="number" id="speed_buff2_1" name="speed_buff2_1" min="-10" max="10" step="1">
+            </div>
+            <div class="field">
+              <label for="speed_buff2_2">Ⅱバフ:</label>
+              <input type="number" id="speed_buff2_2" name="speed_buff2_2" min="-10" max="10" step="1">
+            </div>
+            <div class="field">
+              <label for="speed_ice2">凍結:</label>
+              <input type="number" id="speed_ice2" name="speed_ice2" min="0" max="5" step="1">
+            </div>
+          </div>
+        </div>
+        <div class="btn-row" style="margin-top: 20px;">
+          <button type="submit" id="calculate-btn">計算</button>
+        </div>
+        <div id="calculation-result" role="status" aria-live="polite" style="margin-top: 16px;">
           <p>比較結果: <strong id="comparison-result"></strong></p>
           <p>速力範囲: <span id="speed-range"></span></p>
         </div>
       </form>
+    </section>
 
-      <p class="home_button"><a href="index.html">ホームに戻る</a></p>
-  <hr>
-  <div style="text-align: center;">
-    <div>©2026 | site by mimimi-mimis</div>
+    <p class="home_button"><a href="index.html">ホームに戻る</a></p>
   </div>
-    </div>
-  </body>
+
+  <footer class="site-footer">©2026 | site by mimimi-mimis</footer>
+</body>
 </html>
