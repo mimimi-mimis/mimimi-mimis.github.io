@@ -16,7 +16,6 @@ const TENHOU_TERMINALS = [0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33];
 const YAKUMAN_LIST = [
   '国士無双', '四暗刻', '字一色', '大四喜', '小四喜', '大七星',
   '緑一色', '紅孔雀', '大三元', '九蓮宝燈', '大車輪', '大竹林', '大数隣',
-  '十三不塔',
 ];
 const YAKUMAN_MAX_ATTEMPTS = Infinity; // 上限なし (中止ボタンで止める)
 
@@ -143,48 +142,17 @@ function tenhouFromParts(counts, g0, g1, g2, g3) {
   return isKokushi(counts);
 }
 
-// 十三不塔: 14枚で対子がちょうど1つ、他の13枚はすべて互いに無関係
-// (同じ色の数牌は3つ以上離れている・字牌は重ならない)。
-// すべて么九牌の手は国士無双なので除く
-function isJuusanFutou(counts) {
-  let total = 0;
-  for (let i = 0; i < 34; i++) total += counts[i];
-  if (total !== 14) return false;
-  let pairs = 0;
-  for (let i = 0; i < 34; i++) {
-    if (counts[i] === 2) pairs++;
-    if (counts[i] > 2) return false;
-  }
-  if (pairs !== 1) return false;
-  let nonTerminal = false;
-  for (let t = 0; t < 34; t++) {
-    if (counts[t] > 0 && !TENHOU_TERMINALS.includes(t)) { nonTerminal = true; break; }
-  }
-  if (!nonTerminal) return false;
-  const present = [];
-  for (let t = 0; t < 34; t++) if (counts[t] > 0) present.push(t);
-  for (let a = 0; a < present.length; a++) {
-    for (let b = a + 1; b < present.length; b++) {
-      const x = present[a], y = present[b];
-      if (x < 27 && y < 27 && Math.floor(x / 9) === Math.floor(y / 9) && Math.abs(x - y) <= 2) return false;
-    }
-  }
-  return true;
-}
-
-// 14枚が和了形か (通常形 / 七対子 / 国士無双 / 十三不塔)。counts だけから判定する互換版
+// 14枚が和了形か (通常形 / 七対子 / 国士無双)。counts だけから判定する互換版
 function isTenhou(counts) {
   let g0 = 0, g1 = 0, g2 = 0, g3 = 0;
   for (let i = 0; i < 9; i++) g0 += counts[i];
   for (let i = 9; i < 18; i++) g1 += counts[i];
   for (let i = 18; i < 27; i++) g2 += counts[i];
   for (let i = 27; i < 34; i++) g3 += counts[i];
-  return tenhouFromParts(counts, g0, g1, g2, g3) || isJuusanFutou(counts);
+  return tenhouFromParts(counts, g0, g1, g2, g3);
 }
 
-// 配牌状態 (drawInto が配りながら維持するグループ別枚数) を使う最速版。
-// 十三不塔は含まないので、呼び出し側で state.pairs / state.maxCount による
-// 事前フィルターを通した場合だけ isJuusanFutou を別途確認すること
+// 配牌状態 (drawInto が配りながら維持するグループ別枚数) を使う最速版
 function isTenhouState(state) {
   const gr = state.groups;
   return tenhouFromParts(state.counts, gr[0], gr[1], gr[2], gr[3]);
@@ -199,7 +167,6 @@ const NONTERMINALS = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15, 16, 19, 20, 2
 const TARGET_CODE = {
   '国士無双': 1, '大三元': 2, '四暗刻': 3, '字一色': 4, '大四喜': 5, '小四喜': 6,
   '九蓮宝燈': 7, '緑一色': 8, '大七星': 9, '紅孔雀': 10, '大車輪': 11, '大竹林': 12, '大数隣': 13,
-  '十三不塔': 14,
 };
 function targetCodeOf(target) {
   if (target === null || target === undefined) return -1;
@@ -237,13 +204,6 @@ function targetPossible(counts, groups, code) {
       return groups[2] === 14;
     case 13: // 大数隣: 萬子のみで14枚
       return groups[0] === 14;
-    case 14: { // 十三不塔: 3枚以上の牌種がなく、対子がちょうど1つで、么九字牌以外が1枚以上必要
-      let prs = 0;
-      for (let i = 0; i < 34; i++) { const c = counts[i]; if (c > 2) return false; if (c === 2) prs++; }
-      if (prs !== 1) return false;
-      for (let i = 0; i < NONTERMINALS.length; i++) if (counts[NONTERMINALS[i]] > 0) return true;
-      return false;
-    }
     default:
       return true;
   }
@@ -327,8 +287,6 @@ function yakumanNames(counts) {
   }
   // 四暗刻
   if (isSuuankou(counts)) names.push('四暗刻');
-  // 十三不塔
-  if (isJuusanFutou(counts)) names.push('十三不塔');
   return names;
 }
 
@@ -347,9 +305,6 @@ function createDrawState() {
     touchedCount: 0,
     // drawInto が配りながら維持する集計値 (判定の再計算を避ける)
     groups: new Int32Array(4),
-    // 十三不塔の事前フィルター用: 対子の牌種数と最大枚数も配りながら維持する
-    pairs: 0,
-    maxCount: 0,
     // 高速な疑似乱数 (LCG) の種。ワーカーごとに違う値になるよう乱数+時刻で初期化
     rng: ((Math.random() * 4294967296) ^ Date.now()) | 0,
   };
@@ -365,8 +320,6 @@ function drawInto(state) {
   state.touchedCount = 0;
   const gr = state.groups;
   gr[0] = 0; gr[1] = 0; gr[2] = 0; gr[3] = 0;
-  state.pairs = 0;
-  state.maxCount = 0;
   let rng = state.rng | 0;
   for (let i = 0; i < 14; i++) {
     rng = (Math.imul(rng, 1664525) + 1013904223) | 0;
@@ -377,9 +330,6 @@ function drawInto(state) {
     const tile = id >> 2;
     const before = counts[tile];
     if (before === 0) touched[state.touchedCount++] = tile;
-    if (before === 1) state.pairs++;
-    else if (before === 2) state.pairs--;
-    if (before + 1 > state.maxCount) state.maxCount = before + 1;
     counts[tile] = before + 1;
     gr[TILE_GROUP[tile]]++;
   }
@@ -428,7 +378,6 @@ ${suitKeyOf.toString()}
 ${tenhouFromParts.toString()}
 ${isTenhou.toString()}
 ${isTenhouState.toString()}
-${isJuusanFutou.toString()}
 ${isSuuankou.toString()}
 ${yakumanNames.toString()}
 ${createDrawState.toString()}
@@ -457,7 +406,7 @@ function chunk() {
       attempts++;
       const counts = drawInto(state);
       // 狙いモードでも全配牌を完全判定し、天和回数と他の役満を漏れなく集計する
-      if (isTenhouState(state) || (state.pairs === 1 && state.maxCount <= 2 && isJuusanFutou(counts))) {
+      if (isTenhouState(state)) {
         const yakumans = yakumanNames(counts);
         if (target === null) {
           running = false;
@@ -644,7 +593,7 @@ function createRunner() {
               attempts++;
               const counts = drawInto(state);
               // 狙いモードでも全配牌を完全判定し、天和回数と他の役満を漏れなく集計する
-              if (isTenhouState(state) || (state.pairs === 1 && state.maxCount <= 2 && isJuusanFutou(counts))) {
+              if (isTenhouState(state)) {
                 const yakumans = yakumanNames(counts);
                 if (target === null) {
                   resolve({ attempts, counts: Array.from(counts), yakumans, tenhouCount: tenhouCount + 1, otherYakumans });
@@ -780,5 +729,5 @@ if (typeof document !== 'undefined') {
 
 // Node でのテスト用 (ブラウザでは無視される)
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { isTenhou, isTenhouState, yakumanNames, isJuusanFutou, targetPossible, targetCodeOf, drawCounts, handTiles, YAKUMAN_LIST, createDrawState, drawInto };
+  module.exports = { isTenhou, isTenhouState, yakumanNames, targetPossible, targetCodeOf, drawCounts, handTiles, YAKUMAN_LIST, createDrawState, drawInto };
 }
