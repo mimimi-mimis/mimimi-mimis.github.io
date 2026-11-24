@@ -1,5 +1,7 @@
 // 天和ジェネレーター
-// 天和・役満の判定ロジック (高速化版: 配列の使い回しで割り当てを削減)
+// 天和・役満の判定ロジック (高速化版: スート別ルックアップテーブル + 配牌中の集計)
+// ※ 狙いモードでも全配牌を完全判定する (天和回数・他役満の集計を正確にするため、
+//    早期リジェクトで天和判定自体を省略することはしない)
 // 牌の種類は 0-33: 0-8=萬子, 9-17=筒子, 18-26=索子, 27-33=字牌(東南西北白發中)
 
 const TILE_EMOJIS = [
@@ -14,6 +16,7 @@ const TENHOU_TERMINALS = [0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33];
 const YAKUMAN_LIST = [
   '国士無双', '四暗刻', '字一色', '大四喜', '小四喜', '大七星',
   '緑一色', '紅孔雀', '大三元', '九蓮宝燈', '大車輪', '大竹林', '大数隣',
+  '十三不塔',
 ];
 const YAKUMAN_MAX_ATTEMPTS = Infinity; // 上限なし (中止ボタンで止める)
 
@@ -23,75 +26,240 @@ for (const t of [19, 20, 21, 23, 25, 32]) GREEN_MASK[t] = true;
 const RED_MASK = new Array(34).fill(false);
 for (const t of [18, 22, 24, 26, 33]) RED_MASK[t] = true;
 
-// 残りの牌が全部 面子(順子/刻子) に分解できれば true
-// counts を直接書き換えて復元する (コピーを作らない)
-function canFormMelds(counts) {
-  let i = 0;
-  while (i < 34 && counts[i] === 0) i++;
-  if (i === 34) return true;
-  if (counts[i] >= 3) { // 刻子
-    counts[i] -= 3;
-    if (canFormMelds(counts)) { counts[i] += 3; return true; }
-    counts[i] += 3;
-  }
-  if (i < 27 && i % 9 <= 6 && counts[i + 1] > 0 && counts[i + 2] > 0) { // 順子
-    counts[i]--; counts[i + 1]--; counts[i + 2]--;
-    if (canFormMelds(counts)) { counts[i]++; counts[i + 1]++; counts[i + 2]++; return true; }
-    counts[i]++; counts[i + 1]++; counts[i + 2]++;
-  }
-  return false;
+// ---- 高速判定用ルックアップテーブル ----
+// 数牌スート (9種) の牌形を、カウントベクトルを 5 進数とみなしたキーで分類する。
+// SUIT_BITS[key] の bit0: そのスート単独で面子に分解できる / bit1: 雀頭を1つ含んで分解できる。
+// テーブルは面子の組み合わせの列挙で作る (全パターンの走査より桁違いに速い)。
+const POW5 = [1, 5, 25, 125, 625, 3125, 15625, 78125, 390625];
+const TILE_GROUP = new Uint8Array(34); // 牌種 -> グループ番号 (0=萬,1=筒,2=索,3=字)
+const TILE_POW5 = new Int32Array(34);  // 牌種 -> スートキーへの加算値 (字牌は0)
+for (let t = 0; t < 34; t++) {
+  TILE_GROUP[t] = t < 27 ? (t / 9) | 0 : 3;
+  TILE_POW5[t] = t < 27 ? POW5[t % 9] : 0;
 }
 
-// 14枚が和了形か (通常形 / 七対子 / 国士無双)
-function isTenhou(counts) {
-  // 七対子
-  let pairs = 0;
-  for (let i = 0; i < 34; i++) if (counts[i] === 2) pairs++;
-  if (pairs === 7) return true;
-  // 国士無双
-  let termSum = 0;
-  let kokushi = true;
-  for (let k = 0; k < TENHOU_TERMINALS.length; k++) {
-    const t = TENHOU_TERMINALS[k];
-    if (counts[t] < 1) { kokushi = false; break; }
-    termSum += counts[t];
+function buildSuitTable() {
+  const table = new Uint8Array(1953125); // 5^9 通り
+  const meldIdx = [];
+  for (let i = 0; i < 9; i++) meldIdx.push([i, i, i]);         // 刻子
+  for (let i = 0; i < 7; i++) meldIdx.push([i, i + 1, i + 2]); // 順子
+  const cur = new Int32Array(9);
+  function keyOf() {
+    let k = 0;
+    for (let i = 8; i >= 0; i--) k = k * 5 + cur[i];
+    return k;
   }
-  if (kokushi && termSum === 14) return true;
-  // 通常形: 雀頭を1つ抜いて、残りが全部面子 (counts を直接使う)
-  for (let pair = 0; pair < 34; pair++) {
-    if (counts[pair] >= 2) {
-      counts[pair] -= 2;
-      const ok = canFormMelds(counts);
-      counts[pair] += 2;
-      if (ok) return true;
+  function dfs(start, used, bit) {
+    table[keyOf()] |= bit;
+    if (used === 4) return;
+    for (let m = start; m < meldIdx.length; m++) {
+      const md = meldIdx[m];
+      cur[md[0]]++; cur[md[1]]++; cur[md[2]]++;
+      if (cur[md[0]] <= 4 && cur[md[1]] <= 4 && cur[md[2]] <= 4) dfs(m, used + 1, bit);
+      cur[md[0]]--; cur[md[1]]--; cur[md[2]]--;
     }
   }
+  dfs(0, 0, 1); // 面子のみ
+  for (let p = 0; p < 9; p++) { // 雀頭1つ + 面子
+    cur[p] = 2;
+    dfs(0, 0, 2);
+    cur[p] = 0;
+  }
+  return table;
+}
+const SUIT_BITS = buildSuitTable();
+
+// 国士無双か (13種の么九字牌が全部あり、么九字牌だけで14枚)
+function isKokushi(counts) {
+  let termSum = 0;
+  for (let k = 0; k < TENHOU_TERMINALS.length; k++) {
+    const t = TENHOU_TERMINALS[k];
+    if (counts[t] < 1) return false;
+    termSum += counts[t];
+  }
+  return termSum === 14;
+}
+
+// 字牌は順子がないので、各牌が 0 枚か 3 の倍数枚 (雀頭を除く) であれば面子になる
+function honorsMelds(counts) {
+  for (let i = 27; i < 34; i++) if (counts[i] % 3 !== 0) return false;
+  return true;
+}
+
+// 字牌グループが「雀頭1つ + 刻子だけ」に分解できるか
+function honorsPairMelds(counts) {
+  for (let p = 27; p < 34; p++) {
+    if (counts[p] < 2) continue;
+    let ok = true;
+    for (let i = 27; i < 34; i++) {
+      const v = counts[i] - (i === p ? 2 : 0);
+      if (v % 3 !== 0) { ok = false; break; }
+    }
+    if (ok) return true;
+  }
   return false;
 }
 
-// 残りの牌が全部 刻子 に分解できれば true (四暗刻判定用)
-function canFormTriplets(counts) {
+// 和了形判定のコア。グループ別枚数だけを外から渡し、スートキーと対子数は
+// 候補になった手についてだけ遅延計算する (大半の手は mod 3 フィルターで落ちる)。
+// 面子分解は再帰ではなく SUIT_BITS の参照だけで済む。
+function suitKeyOf(counts, base) {
+  let k = 0;
+  for (let i = 0; i < 9; i++) k += counts[base + i] * POW5[i];
+  return k;
+}
+function tenhouFromParts(counts, g0, g1, g2, g3) {
+  // 通常形の高速フィルター: 雀頭のあるグループだけ枚数 % 3 == 2、他は % 3 == 0
+  let pairGroup = -1;
+  let modOk = true;
+  let m = g0 % 3;
+  if (m === 2) pairGroup = 0; else if (m !== 0) modOk = false;
+  m = g1 % 3;
+  if (m === 2) { if (pairGroup !== -1) modOk = false; else pairGroup = 1; } else if (m !== 0) modOk = false;
+  m = g2 % 3;
+  if (m === 2) { if (pairGroup !== -1) modOk = false; else pairGroup = 2; } else if (m !== 0) modOk = false;
+  m = g3 % 3;
+  if (m === 2) { if (pairGroup !== -1) modOk = false; else pairGroup = 3; } else if (m !== 0) modOk = false;
+  if (modOk && pairGroup !== -1) {
+    let meldOk = true;
+    if (pairGroup !== 0 && !(SUIT_BITS[suitKeyOf(counts, 0)] & 1)) meldOk = false;
+    if (meldOk && pairGroup !== 1 && !(SUIT_BITS[suitKeyOf(counts, 9)] & 1)) meldOk = false;
+    if (meldOk && pairGroup !== 2 && !(SUIT_BITS[suitKeyOf(counts, 18)] & 1)) meldOk = false;
+    if (meldOk && pairGroup !== 3 && !honorsMelds(counts)) meldOk = false;
+    if (meldOk) {
+      if (pairGroup === 3) {
+        if (honorsPairMelds(counts)) return true;
+      } else if (SUIT_BITS[suitKeyOf(counts, pairGroup * 9)] & 2) {
+        return true;
+      }
+    }
+  }
+  // 七対子: 各グループの枚数が全部偶数のときにだけ対子を数える (必要条件)
+  if ((g0 & 1) === 0 && (g1 & 1) === 0 && (g2 & 1) === 0 && (g3 & 1) === 0) {
+    let pairs = 0;
+    for (let i = 0; i < 34; i++) if (counts[i] === 2) pairs++;
+    if (pairs === 7) return true;
+  }
+  return isKokushi(counts);
+}
+
+// 十三不塔: 14枚で対子がちょうど1つ、他の13枚はすべて互いに無関係
+// (同じ色の数牌は3つ以上離れている・字牌は重ならない)。
+// すべて么九牌の手は国士無双なので除く
+function isJuusanFutou(counts) {
+  let total = 0;
+  for (let i = 0; i < 34; i++) total += counts[i];
+  if (total !== 14) return false;
+  let pairs = 0;
   for (let i = 0; i < 34; i++) {
-    if (counts[i] > 0) {
-      if (counts[i] < 3) return false;
-      counts[i] -= 3;
-      const result = canFormTriplets(counts);
-      counts[i] += 3;
-      return result;
+    if (counts[i] === 2) pairs++;
+    if (counts[i] > 2) return false;
+  }
+  if (pairs !== 1) return false;
+  let nonTerminal = false;
+  for (let t = 0; t < 34; t++) {
+    if (counts[t] > 0 && !TENHOU_TERMINALS.includes(t)) { nonTerminal = true; break; }
+  }
+  if (!nonTerminal) return false;
+  const present = [];
+  for (let t = 0; t < 34; t++) if (counts[t] > 0) present.push(t);
+  for (let a = 0; a < present.length; a++) {
+    for (let b = a + 1; b < present.length; b++) {
+      const x = present[a], y = present[b];
+      if (x < 27 && y < 27 && Math.floor(x / 9) === Math.floor(y / 9) && Math.abs(x - y) <= 2) return false;
     }
   }
   return true;
 }
 
-// 雀頭を1つ抜いて、残りが全部刻子にできれば四暗刻
+// 14枚が和了形か (通常形 / 七対子 / 国士無双 / 十三不塔)。counts だけから判定する互換版
+function isTenhou(counts) {
+  let g0 = 0, g1 = 0, g2 = 0, g3 = 0;
+  for (let i = 0; i < 9; i++) g0 += counts[i];
+  for (let i = 9; i < 18; i++) g1 += counts[i];
+  for (let i = 18; i < 27; i++) g2 += counts[i];
+  for (let i = 27; i < 34; i++) g3 += counts[i];
+  return tenhouFromParts(counts, g0, g1, g2, g3) || isJuusanFutou(counts);
+}
+
+// 配牌状態 (drawInto が配りながら維持するグループ別枚数) を使う最速版。
+// 十三不塔は含まないので、呼び出し側で state.pairs / state.maxCount による
+// 事前フィルターを通した場合だけ isJuusanFutou を別途確認すること
+function isTenhouState(state) {
+  const gr = state.groups;
+  return tenhouFromParts(state.counts, gr[0], gr[1], gr[2], gr[3]);
+}
+
+// ---- 狙いの役満ごとの早期リジェクト (現在は検索ループでは未使用) ----
+// どれも「その役満があり得るなら必ず満たす」必要条件だけを見るので、本物の役満を
+// 弾くことはないが、これで天和判定自体を省略すると、狙い以外の天和や役満が
+// 集計 (その間に天和はN回 / 他の役満) から漏れてしまう。そのため検索ループでは
+// 使わず、全配牌を完全判定する方針に統一した (正確さ優先)。
+const NONTERMINALS = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25];
+const TARGET_CODE = {
+  '国士無双': 1, '大三元': 2, '四暗刻': 3, '字一色': 4, '大四喜': 5, '小四喜': 6,
+  '九蓮宝燈': 7, '緑一色': 8, '大七星': 9, '紅孔雀': 10, '大車輪': 11, '大竹林': 12, '大数隣': 13,
+  '十三不塔': 14,
+};
+function targetCodeOf(target) {
+  if (target === null || target === undefined) return -1;
+  return TARGET_CODE[target] || 0;
+}
+function targetPossible(counts, groups, code) {
+  switch (code) {
+    case 1: // 国士無双: 么九字牌以外の牌が1枚でもあれば不可
+      for (let i = 0; i < NONTERMINALS.length; i++) if (counts[NONTERMINALS[i]] > 0) return false;
+      return true;
+    case 2: // 大三元: 白・發・中がそれぞれ3枚以上必要
+      return counts[31] >= 3 && counts[32] >= 3 && counts[33] >= 3;
+    case 3: // 四暗刻: 枚数が1枚・4枚の牌種があってはならない
+      for (let i = 0; i < 34; i++) { const c = counts[i]; if (c === 1 || c === 4) return false; }
+      return true;
+    case 4: // 字一色: 字牌だけで14枚
+      return groups[3] === 14;
+    case 5: // 大四喜: 風牌12枚が必要
+      return counts[27] + counts[28] + counts[29] + counts[30] >= 12;
+    case 6: // 小四喜: 風牌11枚が必要
+      return counts[27] + counts[28] + counts[29] + counts[30] >= 11;
+    case 7: // 九蓮宝燈: 数牌1色のみで14枚
+      return groups[0] === 14 || groups[1] === 14 || groups[2] === 14;
+    case 8: // 緑一色: 対象外の牌があれば不可
+      for (let t = 0; t < 34; t++) if (counts[t] > 0 && !GREEN_MASK[t]) return false;
+      return true;
+    case 9: // 大七星: 字牌だけで14枚
+      return groups[3] === 14;
+    case 10: // 紅孔雀: 対象外の牌があれば不可
+      for (let t = 0; t < 34; t++) if (counts[t] > 0 && !RED_MASK[t]) return false;
+      return true;
+    case 11: // 大車輪: 筒子のみで14枚
+      return groups[1] === 14;
+    case 12: // 大竹林: 索子のみで14枚
+      return groups[2] === 14;
+    case 13: // 大数隣: 萬子のみで14枚
+      return groups[0] === 14;
+    case 14: { // 十三不塔: 3枚以上の牌種がなく、対子がちょうど1つで、么九字牌以外が1枚以上必要
+      let prs = 0;
+      for (let i = 0; i < 34; i++) { const c = counts[i]; if (c > 2) return false; if (c === 2) prs++; }
+      if (prs !== 1) return false;
+      for (let i = 0; i < NONTERMINALS.length; i++) if (counts[NONTERMINALS[i]] > 0) return true;
+      return false;
+    }
+    default:
+      return true;
+  }
+}
+
+// 雀頭を1つ抜いて、残りが全部刻子 (各牌 0 枚か 3 枚) なら四暗刻。
+// 刻子だけの分解は決定的なので、再帰なしで判定できる
 function isSuuankou(counts) {
   for (let pair = 0; pair < 34; pair++) {
-    if (counts[pair] >= 2) {
-      counts[pair] -= 2;
-      const ok = canFormTriplets(counts);
-      counts[pair] += 2;
-      if (ok) return true;
+    if (counts[pair] < 2) continue;
+    let ok = true;
+    for (let i = 0; i < 34; i++) {
+      const v = counts[i] - (i === pair ? 2 : 0);
+      if (v !== 0 && v !== 3) { ok = false; break; }
     }
+    if (ok) return true;
   }
   return false;
 }
@@ -159,38 +327,63 @@ function yakumanNames(counts) {
   }
   // 四暗刻
   if (isSuuankou(counts)) names.push('四暗刻');
+  // 十三不塔
+  if (isJuusanFutou(counts)) names.push('十三不塔');
   return names;
 }
 
 // 配牌用の使い回しバッファ (検索ごとに1セット)
+// wall は 136 枚の並びを保持し続け、部分 Fisher-Yates で先頭14枚を選ぶ。
+// 置換後の wall も 136 枚の順列のままなので、毎回初期化し直さなくても
+// 次の抽選は一様ランダムになる (重複チェックのループも不要になる)
 function createDrawState() {
+  const wall = new Uint8Array(136);
+  for (let i = 0; i < 136; i++) wall[i] = i;
   return {
     counts: new Int32Array(34),
-    drawn: new Int32Array(14),
+    wall,
+    hand: new Uint8Array(14),
     touched: new Int32Array(34),
     touchedCount: 0,
+    // drawInto が配りながら維持する集計値 (判定の再計算を避ける)
+    groups: new Int32Array(4),
+    // 十三不塔の事前フィルター用: 対子の牌種数と最大枚数も配りながら維持する
+    pairs: 0,
+    maxCount: 0,
+    // 高速な疑似乱数 (LCG) の種。ワーカーごとに違う値になるよう乱数+時刻で初期化
+    rng: ((Math.random() * 4294967296) ^ Date.now()) | 0,
   };
 }
 
 // 山 (各牌4枚・全136枚) から14枚引いて state.counts にセットする
-// 重複なし抽選 (136枚から14枚を一様に選ぶ)
+// 乱数は Math.random より高速な LCG を使い、上位ビットから抽選位置を決める
 function drawInto(state) {
-  const { counts, drawn, touched } = state;
+  const counts = state.counts;
+  const wall = state.wall;
+  const touched = state.touched;
   for (let k = 0; k < state.touchedCount; k++) counts[touched[k]] = 0;
   state.touchedCount = 0;
+  const gr = state.groups;
+  gr[0] = 0; gr[1] = 0; gr[2] = 0; gr[3] = 0;
+  state.pairs = 0;
+  state.maxCount = 0;
+  let rng = state.rng | 0;
   for (let i = 0; i < 14; i++) {
-    let x;
-    let dup;
-    do {
-      x = (Math.random() * 136) | 0;
-      dup = false;
-      for (let k = 0; k < i; k++) if (drawn[k] === x) { dup = true; break; }
-    } while (dup);
-    drawn[i] = x;
-    const tile = (x / 4) | 0;
-    if (counts[tile] === 0) touched[state.touchedCount++] = tile;
-    counts[tile]++;
+    rng = (Math.imul(rng, 1664525) + 1013904223) | 0;
+    const j = i + (Math.imul(rng >>> 16, 136 - i) >>> 16);
+    const tmp = wall[i]; wall[i] = wall[j]; wall[j] = tmp;
+    const id = wall[i];
+    state.hand[i] = id; // 引いた実牌 (結果表示用)
+    const tile = id >> 2;
+    const before = counts[tile];
+    if (before === 0) touched[state.touchedCount++] = tile;
+    if (before === 1) state.pairs++;
+    else if (before === 2) state.pairs--;
+    if (before + 1 > state.maxCount) state.maxCount = before + 1;
+    counts[tile] = before + 1;
+    gr[TILE_GROUP[tile]]++;
   }
+  state.rng = rng;
   return counts;
 }
 
@@ -222,9 +415,20 @@ function buildWorkerSource() {
 const TENHOU_TERMINALS = ${JSON.stringify(TENHOU_TERMINALS)};
 const GREEN_MASK = ${JSON.stringify(GREEN_MASK)};
 const RED_MASK = ${JSON.stringify(RED_MASK)};
-${canFormMelds.toString()}
-${canFormTriplets.toString()}
+const POW5 = [1, 5, 25, 125, 625, 3125, 15625, 78125, 390625];
+const TILE_GROUP = new Uint8Array(34);
+const TILE_POW5 = new Int32Array(34);
+for (let t = 0; t < 34; t++) { TILE_GROUP[t] = t < 27 ? (t / 9) | 0 : 3; TILE_POW5[t] = t < 27 ? POW5[t % 9] : 0; }
+${buildSuitTable.toString()}
+const SUIT_BITS = buildSuitTable();
+${honorsMelds.toString()}
+${isKokushi.toString()}
+${honorsPairMelds.toString()}
+${suitKeyOf.toString()}
+${tenhouFromParts.toString()}
 ${isTenhou.toString()}
+${isTenhouState.toString()}
+${isJuusanFutou.toString()}
 ${isSuuankou.toString()}
 ${yakumanNames.toString()}
 ${createDrawState.toString()}
@@ -249,10 +453,11 @@ function chunk() {
   if (!running) return;
   const deadline = Date.now() + 40;
   while (Date.now() < deadline) {
-    for (let k = 0; k < 2000; k++) {
+    for (let k = 0; k < 20000; k++) {
       attempts++;
       const counts = drawInto(state);
-      if (isTenhou(counts)) {
+      // 狙いモードでも全配牌を完全判定し、天和回数と他の役満を漏れなく集計する
+      if (isTenhouState(state) || (state.pairs === 1 && state.maxCount <= 2 && isJuusanFutou(counts))) {
         const yakumans = yakumanNames(counts);
         if (target === null) {
           running = false;
@@ -435,10 +640,11 @@ function createRunner() {
           }
           const deadline = performance.now() + 40;
           while (performance.now() < deadline && attempts < maxAttempts) {
-            for (let k = 0; k < 2000 && attempts < maxAttempts; k++) {
+            for (let k = 0; k < 20000 && attempts < maxAttempts; k++) {
               attempts++;
               const counts = drawInto(state);
-              if (isTenhou(counts)) {
+              // 狙いモードでも全配牌を完全判定し、天和回数と他の役満を漏れなく集計する
+              if (isTenhouState(state) || (state.pairs === 1 && state.maxCount <= 2 && isJuusanFutou(counts))) {
                 const yakumans = yakumanNames(counts);
                 if (target === null) {
                   resolve({ attempts, counts: Array.from(counts), yakumans, tenhouCount: tenhouCount + 1, otherYakumans });
@@ -574,5 +780,5 @@ if (typeof document !== 'undefined') {
 
 // Node でのテスト用 (ブラウザでは無視される)
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { isTenhou, yakumanNames, drawCounts, handTiles, YAKUMAN_LIST, createDrawState, drawInto };
+  module.exports = { isTenhou, isTenhouState, yakumanNames, isJuusanFutou, targetPossible, targetCodeOf, drawCounts, handTiles, YAKUMAN_LIST, createDrawState, drawInto };
 }
