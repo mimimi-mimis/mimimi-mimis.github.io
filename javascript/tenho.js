@@ -1,7 +1,7 @@
 // 天和ジェネレーター
 // 天和・役満の判定ロジック (高速化版: スート別ルックアップテーブル + 配牌中の集計)
-// ※ 狙いモードでも全配牌を完全判定する (天和回数・他役満の集計を正確にするため、
-//    早期リジェクトで天和判定自体を省略することはしない)
+// ※ 役満指定モードでは早期リジェクトで天和判定を省略して高速化し、その代わり
+//    天和回数・他の役満は集計しない。指定なしモードでは全配牌を完全判定して集計する
 // 牌の種類は 0-33: 0-8=萬子, 9-17=筒子, 18-26=索子, 27-33=字牌(東南西北白發中)
 
 const TILE_EMOJIS = [
@@ -158,11 +158,11 @@ function isTenhouState(state) {
   return tenhouFromParts(state.counts, gr[0], gr[1], gr[2], gr[3]);
 }
 
-// ---- 狙いの役満ごとの早期リジェクト (現在は検索ループでは未使用) ----
+// ---- 狙いの役満ごとの早期リジェクト (役満指定モードの検索ループで使用) ----
 // どれも「その役満があり得るなら必ず満たす」必要条件だけを見るので、本物の役満を
-// 弾くことはないが、これで天和判定自体を省略すると、狙い以外の天和や役満が
-// 集計 (その間に天和はN回 / 他の役満) から漏れてしまう。そのため検索ループでは
-// 使わず、全配牌を完全判定する方針に統一した (正確さ優先)。
+// 弾くことはない。役満指定モードではこれで天和判定自体を省略して高速化し、その
+// 代わり狙い以外の天和や役満は集計 (その間に天和はN回 / 他の役満) しない。
+// 指定なしモードでは使わず、全配牌を完全判定して集計する。
 const NONTERMINALS = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25];
 const TARGET_CODE = {
   '国士無双': 1, '大三元': 2, '四暗刻': 3, '字一色': 4, '大四喜': 5, '小四喜': 6,
@@ -380,11 +380,16 @@ ${isTenhou.toString()}
 ${isTenhouState.toString()}
 ${isSuuankou.toString()}
 ${yakumanNames.toString()}
+const NONTERMINALS = ${JSON.stringify(NONTERMINALS)};
+const TARGET_CODE = ${JSON.stringify(TARGET_CODE)};
+${targetCodeOf.toString()}
+${targetPossible.toString()}
 ${createDrawState.toString()}
 ${drawInto.toString()}
 
 let running = false;
 let target = null;
+let targetCode = -1;
 let attempts = 0;
 let tenhouCount = 0;
 let others = {};
@@ -405,7 +410,21 @@ function chunk() {
     for (let k = 0; k < 20000; k++) {
       attempts++;
       const counts = drawInto(state);
-      // 狙いモードでも全配牌を完全判定し、天和回数と他の役満を漏れなく集計する
+      if (targetCode >= 1) {
+        // 役満指定モード: 狙いの役満があり得ない配牌は判定を省略して高速化する。
+        // このモードでは天和回数・他の役満は集計しない
+        if (!targetPossible(counts, state.groups, targetCode)) continue;
+        if (isTenhouState(state)) {
+          const yakumans = yakumanNames(counts);
+          if (yakumans.includes(target)) {
+            running = false;
+            postMessage({ type: 'found', attempts, counts: Array.from(counts), yakumans, tenhouCount, others });
+            return;
+          }
+        }
+        continue;
+      }
+      // 指定なしモード: 全配牌を完全判定し、天和回数と他の役満を漏れなく集計する
       if (isTenhouState(state)) {
         const yakumans = yakumanNames(counts);
         if (target === null) {
@@ -431,6 +450,7 @@ onmessage = (e) => {
   const msg = e.data;
   if (msg.type === 'start') {
     target = msg.target;
+    targetCode = targetCodeOf(msg.target);
     attempts = 0;
     tenhouCount = 0;
     others = {};
@@ -580,6 +600,7 @@ function createRunner() {
         let tenhouCount = 0;
         const otherYakumans = {};
         const state = createDrawState();
+        const targetCode = targetCodeOf(target);
         let lastProgressAt = 0;
         cancelled = false;
         function chunk() {
@@ -592,7 +613,20 @@ function createRunner() {
             for (let k = 0; k < 20000 && attempts < maxAttempts; k++) {
               attempts++;
               const counts = drawInto(state);
-              // 狙いモードでも全配牌を完全判定し、天和回数と他の役満を漏れなく集計する
+              if (targetCode >= 1) {
+                // 役満指定モード: 狙いの役満があり得ない配牌は判定を省略して高速化する。
+                // このモードでは天和回数・他の役満は集計しない
+                if (!targetPossible(counts, state.groups, targetCode)) continue;
+                if (isTenhouState(state)) {
+                  const yakumans = yakumanNames(counts);
+                  if (yakumans.includes(target)) {
+                    resolve({ attempts, counts: Array.from(counts), yakumans, tenhouCount, otherYakumans });
+                    return;
+                  }
+                }
+                continue;
+              }
+              // 指定なしモード: 全配牌を完全判定し、天和回数と他の役満を漏れなく集計する
               if (isTenhouState(state)) {
                 const yakumans = yakumanNames(counts);
                 if (target === null) {
@@ -662,6 +696,8 @@ function setupGenerator(prefix, { targetSelectId = null } = {}) {
       ? document.getElementById(targetSelectId).value
       : null;
     const maxAttempts = target ? YAKUMAN_MAX_ATTEMPTS : Infinity;
+    // 役満指定モードでは天和回数・他の役満を集計しないので、表示も配牌回数だけにする
+    const fastTarget = targetCodeOf(target) >= 1;
 
     startBtn.disabled = true;
     stopBtn.disabled = false;
@@ -673,7 +709,7 @@ function setupGenerator(prefix, { targetSelectId = null } = {}) {
       target,
       maxAttempts,
       onProgress: (n, th) => {
-        statusEl.textContent = target
+        statusEl.textContent = (target && !fastTarget)
           ? `配牌中… ${n.toLocaleString()}回 (天和 ${th}回)`
           : `配牌中… ${n.toLocaleString()}回`;
       },
@@ -695,12 +731,14 @@ function setupGenerator(prefix, { targetSelectId = null } = {}) {
       statusEl.textContent = '';
       tilesEl.innerHTML =
         `<p>${target}の天和は${formatCount(res.attempts)}回配っても出ませんでした…</p>` +
-        `<p>過負荷防止のため強制ストップしました</p>` +
-        `<p>その間に天和は<strong>${res.tenhouCount}回</strong>出ました</p>`;
-      const others = YAKUMAN_LIST.filter((n) => res.otherYakumans[n]);
-      if (others.length) {
-        tilesEl.innerHTML += '<p>その間に出た役満:</p>' +
-          others.map((n) => `<p>${n}: ${res.otherYakumans[n]}回</p>`).join('');
+        `<p>過負荷防止のため強制ストップしました</p>`;
+      if (!fastTarget) {
+        tilesEl.innerHTML += `<p>その間に天和は<strong>${res.tenhouCount}回</strong>出ました</p>`;
+        const others = YAKUMAN_LIST.filter((n) => res.otherYakumans[n]);
+        if (others.length) {
+          tilesEl.innerHTML += '<p>その間に出た役満:</p>' +
+            others.map((n) => `<p>${n}: ${res.otherYakumans[n]}回</p>`).join('');
+        }
       }
       return;
     }
